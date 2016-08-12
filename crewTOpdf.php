@@ -248,19 +248,12 @@ td, th {
 /*
  * Tripulantes Query
 */
-//$query2 = db_select('node', 'n');
-//$query2->addField('n', 'nid', 'n_nid');
-//$query2->addField('n', 'title', 'n_title');
 
-//$query3 = db_select('field_data_field_tripulacion_viaje', 'trip');
-//$query3->join($query2, 'join_n', 'join_n.n_nid = trip.entity_id');
 $query2 = db_select('node', 'n'); // Viaje NID
 $query2->leftJoin('field_data_field_tripulacion_viaje', 'trip', 'trip.entity_id = n.nid');
-//$query2->condition('trip.field_tripulacion_viaje_value', 'fc.item_id', '=');
 
 $query2->leftJoin('field_collection_item', 'fc', 'fc.item_id = trip.field_tripulacion_viaje_value');
 $query2->leftJoin('field_data_field_nombre_tripulante', 'nom', 'nom.entity_id = fc.item_id');
-//query2->leftJoin('field_data_field_nombre_tripulante', 'nom', 'nom.entity_id = trip.field_tripulacion_viaje_value');
 $query2->leftJoin('node', 't', 't.nid = nom.field_nombre_tripulante_target_id');
 
 $query2->leftJoin('field_data_field_nombre_personal', 'nombre_join', 'nombre_join.entity_id = t.nid');
