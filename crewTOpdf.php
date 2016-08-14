@@ -1,432 +1,348 @@
 <?php
-
-include_once(libraries_get_path('tcpdf') . '/tcpdf.php');
-
-$n = $node->nid;
-$s = $node->title;
-$user = $site->current->user;
-
-/*
- * Viaje Entity Wrapper
- */
-$wrapper = entity_metadata_wrapper('node', $n);
-$nid_barco = $wrapper->field_barco_viaje->raw();
-$tid_viaje = $wrapper->field_viaje->raw();
-$zarpe = $wrapper->field_fecha_zarpe_viaje->value();
-$ing_puerto = $wrapper->field_ing_puerto_viaje->value();
-$jefe_flota = $wrapper->field_jefe_flota_viaje->value();
-$gte_rh = $wrapper->field_gerente_rh_viaje->value();
-$gte_flota = $wrapper->field_gerente_flota_viaje->value();
-$dir_ope = $wrapper->field_dir_oper_viaje->value();
-$fc_trip = $wrapper->field_tripulacion_viaje->raw();
-$cap_trip = $wrapper->field_capacidad_trip_barco->value();
-
-/*
- * Barco Entity Wrapper
- */
-$w_barco = entity_metadata_wrapper('node', $nid_barco);
-$barco_name = $w_barco->title->value();
-
-/*
- * Barco Taxonomy
- */
-//$w_tid_viaje = entity_metadata_wrapper('taxonomy_vocabulary', $tid_viaje);
-//$viaje_name = $w_tid_viaje->name->raw();
-$query = db_select('taxonomy_term_data', 'tax_tbl');
-$query->addField('tax_tbl', 'name', 'viaje_name');
-$query->addField('tax_tbl', 'tid', 'tid_viaje');
-$query->condition('tax_tbl.tid', $tid_viaje, '=');
-$exeResults = $query->execute();
-$results = $exeResults->fetchAll();
-foreach ($results as $result) {
-  $viaje_name = $result->viaje_name;
-}
-
-
-
-$dir = 'sites/default/files/pdf/';
-
-$file = $dir . $n . '.pdf';
-
-// Extend the TCPDF class to create custom Header and Footer
-class MYPDF extends TCPDF {
+$output = '';
+  /*
+   * Get Barcos ID
+   */
   
-    public $today;
-    public $html;
+  function getBarcoETA($barco_id) {
     
-    public function setDate() {
-      $this->today = 'Fecha: ' . date("d/m/Y");
-      
-      return $this->today;
-    }
-    
-    public function makeTable() {
-      $this->html = '
-          <style>
-          table {
-            border-collapse: collapse;
-          }
+  $query = db_select('node', 'b');
+  
+  /*
+   * Join Viaje - Barco
+   */
+  $query->leftJoin('field_data_field_barco_viaje', 'jv', 
+      'jv.field_barco_viaje_target_id = b.nid');
+  
+  $query->leftJoin('node', 'v', 
+      'v.nid = jv.entity_id');
+  $query->addField('v', 'type', 'type');
+  $query->addField('v', 'nid', 'nid');
+  /*
+   * Join Viaje - Fecha de Zarpe
+   */
+  $query->leftJoin('field_data_field_fecha_zarpe_viaje', 'jz', 
+      'jz.entity_id = v.nid');
+  
+  /*
+   * Join Viaje - Fecha de Arribo
+   */
+  $query->leftJoin('field_data_field_fecha_arribo', 'ja', 
+      'ja.entity_id = v.nid');
+  
+  $query->addField('b', 'title', 'barco');
+  
+  $query->addField('jz', 'entity_id', 'id_zarpe');
+  
+  $query->addField('jz', 'field_fecha_zarpe_viaje_value', 'zarpe');
+  $query->addField('ja', 'field_fecha_arribo_value', 'arribo');
+  $query->addField('b', 'nid', 'bnid');
+  
+  $query->condition('v.type', 'viaje', '=');
+  $query->condition('b.nid', $barco_id, '=');
+  $query->orderBy('v.nid', 'DESC');
+  $query->range(0,1);
+  
+  $exeResults = $query->execute();
+  $results = $exeResults->fetchAll();
+  
+  foreach ($results as $result) {
+    date_default_timezone_set("America/Mazatlan");
+    $date1 = new DateTime($result->zarpe);
+    $date2 = new DateTime($result->arribo);
+    $fecha_zarpe = $date1->format('d-M-y');
+    $fecha_arribo = $date2->format('d-M-y');
+    $barco_name = $result->barco;
+    $today = date('d-m-Y');
+    $str = strtotime($fecha_arribo) - strtotime($today);
+    $eta = floor($str/3600/24);
 
-          .pull-center {
-            text-align: center;
-          }
-          .pull-left {
-            text-align: left;
-          }
-          .pull-right {
-            text-align: right;
-          }
-          </style>
-          <table style="width:100%">
-            <tr>
-              <td class="pull-left" width="25%"><img src="sites/default/files/logos/paz_short.png" alt="Pesca Azteca" height="65" width="65"></td>
-              <td class="pull-center" width="50%">PESCA AZTECA</td>
-              <td class="pull-right" width="25%">Fecha:</td>
-            </tr>
-          </table>';
-      
-      return $this->html;
-    }
-    
-    
-    //Page header
-    public function Header() {
-        
-        // Logo
-        $this->Ln(2, false);
-        $image_file = 'sites/default/files/logos/paz_logo_short.png';
-        $this->Image($image_file, 15, 10, 20, '', 'PNG', 'http://www.mazpesca.com', 'T', false, 300, '', false, false, 0, false, false, false);
-        
-        $this->Ln(2, false);
-        // Set font
-        $this->SetFont('times', '', 14);
-        // Title
-        //$this->Cell(0, 10, 'PESCA AZTECA', 0, false, 'C', 0, '', 0, false, 'M', 'M');
-        //$this->Cell(0, 10, self::setDate(), 0, false, 'C', 0, '', 0, false, 'M', 'M');
-        $this->Text(85, 10, 'PESCA AZTECA');
-        $this->SetFont('times', '', 10);
-        $this->Text(160, 11, self::setDate());
-  }
-
-}
-
-
-$pdf = new MYPDF(PDF_PAGE_ORIENTATION, PDF_UNIT, PDF_PAGE_FORMAT, true, 'UTF-8', false);
-
-// set document information
-$pdf->SetCreator(PDF_CREATOR);
-$pdf->SetAuthor($user);
-$pdf->SetTitle('PESCA AZTECA');
-$pdf->SetSubject('LISTA DE TRIPULACION');
-//$pdf->SetKeywords('Tripulantes');
-
-// set default header data
-$pdf->SetHeaderData(PDF_HEADER_LOGO, PDF_HEADER_LOGO_WIDTH, PDF_HEADER_TITLE.' 005', PDF_HEADER_STRING);
-
-// set header and footer fonts
-$pdf->setHeaderFont(Array(PDF_FONT_NAME_MAIN, '', PDF_FONT_SIZE_MAIN));
-//$pdf->setFooterFont(Array(PDF_FONT_NAME_DATA, '', PDF_FONT_SIZE_DATA));
-
-// set default monospaced font
-$pdf->SetDefaultMonospacedFont(PDF_FONT_MONOSPACED);
-
-// set margins
-$pdf->SetMargins(PDF_MARGIN_LEFT, PDF_MARGIN_TOP, PDF_MARGIN_RIGHT);
-
-// set auto page breaks
-$pdf->SetAutoPageBreak(TRUE, PDF_MARGIN_BOTTOM);
-
-// set image scale factor
-$pdf->setImageScale(PDF_IMAGE_SCALE_RATIO);
-
-// set some language-dependent strings (optional)
-if (@file_exists(dirname(__FILE__).'/lang/eng.php')) {
-    require_once(dirname(__FILE__).'/lang/eng.php');
-    $pdf->setLanguageArray($l);
-}
-
-// ---------------------------------------------------------
-
-// set font
-$pdf->SetFont('times', '', 12);
-
-// add a page
-$pdf->AddPage();
-
-// ---------------------------------------------------------
-
-/*
- * HTML Tables
- */
-
-$html ='
-<style>
-table, th, td {
-  border-collapse: collapse;
-  color: #FFFFFF;
-}
-td, th {
-  text-align: center;
-  border: 1px solid #dddddd;
-  padding: 8px;
-}
-</style>
-<table style="width:100%">
-  <tr bgcolor="#1F497D">
-    <th>LISTA DE TRIPULACION</th>
-  </tr>
-</table>';
-
-$pdf->writeHTML($html, true, 0, true, true);
-$pdf->Ln(5, FALSE);
-
-$pdf->SetFont('times', '', 10);
-
-$html = '
-<style>
-table, th, td {
-  border-collapse: collapse;
-}
-td, th {
-  text-align: left;
-  padding: 6px;
-}
-.t-align {
-  text-align: center;
-}
-
-.b-bottom {
-  border-bottom: 1px solid black;
-}
-</style>
-  <table style="width:100%">
-  <tr>
-    <td style="white-space:nowrap"; width="10%">B/M:</td>
-    <td class="b-bottom t-align" bgcolor="#DDDDDD"; style="white-space:nowrap"; width="25%">' . $barco_name . '</td>
-    <td style="white-space:nowrap"; width="40%">CAPACIDAD DE TRIPULANTES:</td>
-    <td class="b-bottom t-align" bgcolor="#DDDDDD"; style="white-space:nowrap"; width="25%">' . $cap_trip . '</td>
-  </tr>
-  <tr>
-    <td style="white-space:nowrap"; width="10%">VIAJE:</td>
-    <td class="b-bottom t-align" bgcolor="#DDDDDD"; style="white-space:nowrap"; width="25%">' . $viaje_name . '</td>
-    <td style="white-space:nowrap"; width="40%">FECHA DE ZARPE:</td>
-    <td class="b-bottom t-align" bgcolor="#DDDDDD"; style="white-space:nowrap"; width="25%">' . date("d/m/Y", $zarpe) . '</td>
-  </tr>
-</table>';
-$pdf->writeHTML($html, true, 0, true, true);
-$pdf->Ln(5, FALSE);
-
-$pdf->SetFont('times', '', 7);
-
-$html = '
-<style>
-table, th, td {
-    border-collapse: collapse;
-    padding: 6px;
-}
-.pull-center {
-    text-align: center;
-}
-td {
-    text-align: left;
-}
-td, th {
-    border: 1px solid #dddddd;
-}
-</style>
-<table>
-  <tr bgcolor="#dddddd">
-    <th class="pull-center" width="4%"></th>
-    <th class="pull-center" width="29%">NOMBRE</th>
-    <th class="pull-center" width="14%">PUESTO</th>
-    <th class="pull-center" width="16%">CATEGORIA</th>
-    <th class="pull-center" width="16%">DOCUMENTO</th>
-    <th class="pull-center" width="9%">VIGENCIA</th>
-    <th class="pull-center" width="12%">ESCOLARIDAD</th>
-  </tr>';
-
-/*
- * Tripulantes Query
-*/
-
-$query2 = db_select('node', 'n'); // Viaje NID
-$query2->leftJoin('field_data_field_tripulacion_viaje', 'trip', 'trip.entity_id = n.nid');
-
-$query2->leftJoin('field_collection_item', 'fc', 'fc.item_id = trip.field_tripulacion_viaje_value');
-$query2->leftJoin('field_data_field_nombre_tripulante', 'nom', 'nom.entity_id = fc.item_id');
-$query2->leftJoin('node', 't', 't.nid = nom.field_nombre_tripulante_target_id');
-
-$query2->leftJoin('field_data_field_nombre_personal', 'nombre_join', 'nombre_join.entity_id = t.nid');
-$query2->leftJoin('field_data_field_ap_paterno_personal', 'paterno_join', 'paterno_join.entity_id = t.nid');
-$query2->leftJoin('field_data_field_ap_materno_personal', 'materno_join', 'materno_join.entity_id = t.nid');
-
-$query2->leftJoin('field_data_field_puesto_personal', 'puesto_nid_join', 'puesto_nid_join.entity_id = fc.item_id');
-/*
- * Taxonomies
- */
-$query2->leftJoin('taxonomy_term_data', 'puesto_tax_join', 
-    'puesto_tax_join.tid = puesto_nid_join.field_puesto_personal_tid');
-
-$query2->leftJoin('field_data_field_jerarquia_trip', 'orden_tax_join', 
-    'orden_tax_join.entity_id = puesto_tax_join.tid');
-
-$query2->leftJoin('field_data_field_categoria_personal', 'cate_nid_join', 
-    'cate_nid_join.entity_id = t.nid');
-
-$query2->leftJoin('taxonomy_term_data', 'cate_tax_join', 
-    'cate_tax_join.tid = cate_nid_join.field_categoria_personal_tid');
-
-$query2->leftJoin('field_data_field_folio_personal', 'folio_nid_join', 'folio_nid_join.entity_id = t.nid');
-$query2->leftJoin('field_data_field_vigencia_personal', 'vigen_nid_join', 'vigen_nid_join.entity_id = t.nid');
-
-$query2->leftJoin('field_data_field_observaciones_viaje', 'obser_nid_join', 'obser_nid_join.entity_id = n.nid');
-
-$query2->leftJoin('field_data_field_escolaridad_personal', 'esco_nid_join', 'esco_nid_join.entity_id = fc.item_id');
-
-$query2->leftJoin('taxonomy_term_data', 'esco_tax_join', 
-    'esco_tax_join.tid = esco_nid_join.field_escolaridad_personal_tid');
-/*
- * Ing de Puerto
- * field_data_field_nombre_account
- * field_data_field_ap_paterno_account
- * field_data_field_ap_materno_account
- */
-$query2->leftJoin('field_data_field_ing_puerto_viaje', 'join_ing_puerto', 'join_ing_puerto.entity_id = n.nid');
-$query2->leftJoin('users', 'join_user', 'join_user.uid = join_ing_puerto.field_ing_puerto_viaje_target_id');
-$query2->join('field_data_field_nombre_account', 'join_ing_puerto_nombre', 
-    'join_ing_puerto_nombre.entity_id = join_ing_puerto.field_ing_puerto_viaje_target_id');
-
-$query2->join('field_data_field_ap_paterno_account', 'join_ing_puerto_paterno', 
-    'join_ing_puerto_paterno.entity_id = join_ing_puerto.field_ing_puerto_viaje_target_id');
-
-$query2->join('field_data_field_ap_materno_account', 'join_ing_puerto_materno', 
-    'join_ing_puerto_materno.entity_id = join_ing_puerto.field_ing_puerto_viaje_target_id');
-
-/*
- * Fields
- */
-$query2->addField('n', 'nid', 'viaje_n');
-$query2->addField('n', 'title', 'title_n');
-$query2->addField('trip', 'entity_id', 'trip_eid');
-$query2->addField('trip', 'field_tripulacion_viaje_value', 'trip_tarid');
-$query2->addField('fc', 'item_id', 'item_id');
-$query2->addField('nom', 'entity_id', 'nom_eid');
-$query2->addField('nom', 'field_nombre_tripulante_target_id', 'nom_tarid');
-$query2->addField('t', 'nid', 't_nid');
-$query2->addField('t', 'title', 't_title');
-$query2->addField('nombre_join', 'field_nombre_personal_value', 'nombre');
-$query2->addField('paterno_join', 'field_ap_paterno_personal_value', 'ap_paterno');
-$query2->addField('materno_join', 'field_ap_materno_personal_value', 'ap_materno');
-$query2->addField('puesto_tax_join', 'name', 'puesto_name');
-$query2->addField('cate_tax_join', 'name', 'cate_name');
-$query2->addField('folio_nid_join', 'field_folio_personal_value', 'docu_name');
-$query2->addField('vigen_nid_join', 'field_vigencia_personal_value', 'vigen_name');
-$query2->addField('esco_tax_join', 'name', 'esco_name');
-$query2->addField('join_user', 'name', 'ing_puerto_name');
-$query2->addField('join_ing_puerto_nombre', 'field_nombre_account_value', 'ing_puerto_nombre');
-$query2->addField('join_ing_puerto_paterno', 'field_ap_paterno_account_value', 'ing_puerto_paterno');
-$query2->addField('join_ing_puerto_materno', 'field_ap_materno_account_value', 'ing_puerto_materno');
-$query2->addField('obser_nid_join', 'field_observaciones_viaje_value', 'obser_viaje');
-$query2->addField('orden_tax_join', 'field_jerarquia_trip_value', 'order_jerarquia');
-
-$query2->condition('n.nid', $n, '=');
-$query2->groupBy('t.nid');
-$query2->orderBy('orden_tax_join.field_jerarquia_trip_value', 'ASC');
-$exeResults2 = $query2->execute();
-$results2 = $exeResults2->fetchAll();
-
-foreach ($results2 as $result2) {
-  $x += 1;
-  if (!empty($result2->vigen_name)) {
-    $date = new DateTime($result2->vigen_name);
-    $vigencia = $date->format('d/m/Y');
-  } else {
-    $vigencia = '';
   }
   
-  $html .= '<tr>';
-  $html .= '<td>'. $x .'</td>';
-  $html .= '<td>';
-  $html .= $result2->nombre . ' ' . $result2->ap_paterno . ' ' . $result2->ap_materno;
-  $html .= '</td>';
-  $html .= '<td>' . $result2->puesto_name . '</td>';
-  $html .= '<td>' . $result2->cate_name . '</td>';
-  $html .= '<td>' . $result2->docu_name . '</td>';
-  $html .= '<td>' . $vigencia . '</td>';
-  $html .= '<td>' . $result2->esco_name . '</td>';
-  $html .= '</tr>';
-  $ing_puerto_nombre = $result2->ing_puerto_nombre . ' ' . $result2->ing_puerto_paterno . ' ' . $result2->ing_puerto_materno;
-}
-
-$html .= '</table>';
-
-$html .= '<style>
-table, th, td {
-    border-collapse: collapse;
-    padding: 4px;
-    border: 1px solid #dddddd;
-    text-align: left;
-}
-</style>
-<br><br>
-<table>'
-    . '<tr bgcolor="#dddddd">'
-    . '<td>Observaciones</td>'
-    . '</tr>'
-    . '<tr>'
-    . '<td>'. $result2->obser_viaje . '</td>'
-    . '</tr>'
-    . '</table>';
-
-$pdf->writeHTML($html, true, 0, true, true);
-
-$html = '
-<style>
-.table2 {
-  text-align: center;
-  border-style: none;
-}
-td, th {
-  border: 1px solid #ffffff;
-}
-</style>';
-
-$html .= '<div class="pos-table">'
-    . '<table class="table2">'
-    . '<tr>'
-    . '<td width="25%">______________________________</td>'
-    . '<td width="25%">______________________________</td>'
-    . '<td width="25%">______________________________</td>'
-    . '<td width="25%">______________________________</td>'
-    . '</tr>'
-    . '<tr>'
-    . '<td width="25%">ELABORÓ</td>'
-    . '<td width="25%">AUTORIZA</td>'
-    . '<td width="25%">AUTORIZA</td>'
-    . '<td width="25%">AUTORIZA</td>'
-    . '</tr>'
-    . '<tr>'
-    . '<td width="25%">INGENIERO DE PUERTO</td>'
-    . '<td width="25%">JEFE DE FLOTA</td>'
-    . '<td width="25%">GERENTE R.H.</td>'
-    . '<td width="25%">GERENTE DE OPERACIONES</td>'
-    . '</tr>'
-    . '<tr><td></td></tr>'
-    . '<tr><td width="100%" align="center"><a href="http://www.mazpesca.com" '
-    . 'style="color: #B0B0B0; text-decoration: none; font-size: 14px;">'
-    . 'www.mazpesca.com</a></td></tr>'
-    . '</table>'
-    . '</div>';
-
-$pdf->writeHTMLCell($w=0, $h=0, $x=20, $y=250, $html, $border=0, $ln=1, $fill=0, $reseth=true, $align='', $autopadding=true);
-
-$pdf->Ln();
-
-//Close and output PDF document
-$pdf->Output($_SERVER['DOCUMENT_ROOT'] . '/' .$file, 'F');
-
-
-drupal_set_message(t('El archivo PDF se ha generado exitosamente y se ha enviado a su correo.'));
-
-
+    
+    return compact('barco_name', 'fecha_zarpe', 'fecha_arribo', 'eta');
+  }
+  /*
+   * Azteca 1
+   */
+  $azteca1BarcoETA = getBarcoETA(262);
+  $azteca1_name = $azteca1BarcoETA['barco_name'];
+  $azteca1_zarpe = $azteca1BarcoETA['fecha_zarpe'];
+  $azteca1_arribo = $azteca1BarcoETA['fecha_arribo'];
+  $azteca1ETA = $azteca1BarcoETA['eta'];
+  
+  /*
+   * Azteca 2
+   */
+  $azteca2BarcoETA = getBarcoETA(392);
+  $azteca2_name = $azteca2BarcoETA['barco_name'];
+  $azteca2_zarpe = $azteca2BarcoETA['fecha_zarpe'];
+  $azteca2_arribo = $azteca2BarcoETA['fecha_arribo'];
+  $azteca2ETA = $azteca2BarcoETA['eta'];
+  /*
+   * Azteca 3
+   */
+  $azteca3BarcoETA = getBarcoETA(394);
+  $azteca3_name = $azteca3BarcoETA['barco_name'];
+  $azteca3_zarpe = $azteca3BarcoETA['fecha_zarpe'];
+  $azteca3_arribo = $azteca3BarcoETA['fecha_arribo'];
+  $azteca3ETA = $azteca3BarcoETA['eta'];
+  /*
+   * Azteca 4
+   */
+  $azteca4BarcoETA = getBarcoETA(395);
+  $azteca4_name = $azteca4BarcoETA['barco_name'];
+  $azteca4_zarpe = $azteca4BarcoETA['fecha_zarpe'];
+  $azteca4_arribo = $azteca4BarcoETA['fecha_arribo'];
+  $azteca4ETA = $azteca4BarcoETA['eta'];
+  /*
+   * Azteca 5
+   */
+  $azteca5BarcoETA = getBarcoETA(396);
+  $azteca5_name = $azteca5BarcoETA['barco_name'];
+  $azteca5_zarpe = $azteca5BarcoETA['fecha_zarpe'];
+  $azteca5_arribo = $azteca5BarcoETA['fecha_arribo'];
+  $azteca5ETA = $azteca5BarcoETA['eta'];
+  /*
+   * Azteca 6
+   */
+  $azteca6BarcoETA = getBarcoETA(397);
+  $azteca6_name = $azteca6BarcoETA['barco_name'];
+  $azteca6_zarpe = $azteca6BarcoETA['fecha_zarpe'];
+  $azteca6_arribo = $azteca6BarcoETA['fecha_arribo'];
+  $azteca6ETA = $azteca6BarcoETA['eta'];
+  /*
+   * Azteca 7
+   */
+  $azteca7BarcoETA = getBarcoETA(398);
+  $azteca7_name = $azteca7BarcoETA['barco_name'];
+  $azteca7_zarpe = $azteca7BarcoETA['fecha_zarpe'];
+  $azteca7_arribo = $azteca7BarcoETA['fecha_arribo'];
+  $azteca7ETA = $azteca7BarcoETA['eta'];
+  /*
+   * Azteca 8
+   */
+  $azteca8BarcoETA = getBarcoETA(258);
+  $azteca8_name = $azteca8BarcoETA['barco_name'];
+  $azteca8_zarpe = $azteca8BarcoETA['fecha_zarpe'];
+  $azteca8_arribo = $azteca8BarcoETA['fecha_arribo'];
+  $azteca8ETA = $azteca8BarcoETA['eta'];
+  /*
+   * Azteca 9
+   */
+  $azteca9BarcoETA = getBarcoETA(399);
+  $azteca9_name = $azteca9BarcoETA['barco_name'];
+  $azteca9_zarpe = $azteca9BarcoETA['fecha_zarpe'];
+  $azteca9_arribo = $azteca9BarcoETA['fecha_arribo'];
+  $azteca9ETA = $azteca9BarcoETA['eta'];
+  /*
+   * Azteca 10
+   */
+  $azteca10BarcoETA = getBarcoETA(393);
+  $azteca10_name = $azteca10BarcoETA['barco_name'];
+  $azteca10_zarpe = $azteca10BarcoETA['fecha_zarpe'];
+  $azteca10_arribo = $azteca10BarcoETA['fecha_arribo'];
+  $azteca10ETA = $azteca10BarcoETA['eta'];
+  /*
+   * Camila
+   */
+  $camilaBarcoETA = getBarcoETA(405);
+  $camila_name = $camilaBarcoETA['barco_name'];
+  $camila_zarpe = $camilaBarcoETA['fecha_zarpe'];
+  $camila_arribo = $camilaBarcoETA['fecha_arribo'];
+  $camilaETA = $camilaBarcoETA['eta'];
+  /*
+   * Clipperton
+   */
+  $clippertonBarcoETA = getBarcoETA(402);
+  $clipperton_name = $clippertonBarcoETA['barco_name'];
+  $clipperton_zarpe = $clippertonBarcoETA['fecha_zarpe'];
+  $clipperton_arribo = $clippertonBarcoETA['fecha_arribo'];
+  $clippertonETA = $clippertonBarcoETA['eta'];
+  /*
+   * El Dorado
+   */
+  $eldoradoBarcoETA = getBarcoETA(401);
+  $eldorado_name = $eldoradoBarcoETA['barco_name'];
+  $eldorado_zarpe = $eldoradoBarcoETA['fecha_zarpe'];
+  $eldorado_arribo = $eldoradoBarcoETA['fecha_arribo'];
+  $eldoradoETA = $eldoradoBarcoETA['eta'];
+  /*
+   * Franz
+   */
+  $franzBarcoETA = getBarcoETA(403);
+  $franz_name = $franzBarcoETA['barco_name'];
+  $franz_zarpe = $franzBarcoETA['fecha_zarpe'];
+  $franz_arribo = $franzBarcoETA['fecha_arribo'];
+  $franzETA = $franzBarcoETA['eta'];
+  /*
+   * Hanna
+   */
+  $hannaBarcoETA = getBarcoETA(404);
+  $hanna_name = $hannaBarcoETA['barco_name'];
+  $hanna_zarpe = $hannaBarcoETA['fecha_zarpe'];
+  $hanna_arribo = $hannaBarcoETA['fecha_arribo'];
+  $hannaETA = $hannaBarcoETA['eta'];
+  /*
+   * Mazatun
+   */
+  $mazatunBarcoETA = getBarcoETA(400);
+  $mazatun_name = $mazatunBarcoETA['barco_name'];
+  $mazatun_zarpe = $mazatunBarcoETA['fecha_zarpe'];
+  $mazatun_arribo = $mazatunBarcoETA['fecha_arribo'];
+  $mazatunETA = $mazatunBarcoETA['eta'];
+  /*
+   * Mazpesca 2
+   */
+  $mazpesca2BarcoETA = getBarcoETA(275);
+  $mazpesca2_name = $mazpesca2BarcoETA['barco_name'];
+  $mazpesca2_zarpe = $mazpesca2BarcoETA['fecha_zarpe'];
+  $mazpesca2_arribo = $mazpesca2BarcoETA['fecha_arribo'];
+  $mazpesca2ETA = $mazpesca2BarcoETA['eta'];
+  /*
+   * Paco C
+   */
+  $pacocBarcoETA = getBarcoETA(406);
+  $pacoc_name = $pacocBarcoETA['barco_name'];
+  $pacoc_zarpe = $pacocBarcoETA['fecha_zarpe'];
+  $pacoc_arribo = $pacocBarcoETA['fecha_arribo'];
+  $pacocETA = $pacocBarcoETA['eta'];
+  /*
+   * Tamara
+   */
+  $tamaraBarcoETA = getBarcoETA(259);
+  $tamara_name = $tamaraBarcoETA['barco_name'];
+  $tamara_zarpe = $tamaraBarcoETA['fecha_zarpe'];
+  $tamara_arribo = $tamaraBarcoETA['fecha_arribo'];
+  $tamaraETA = $tamaraBarcoETA['eta'];
+  /*
+   * Titis
+   */
+  $titisBarcoETA = getBarcoETA(407);
+  $titis_name = $titisBarcoETA['barco_name'];
+  $titis_zarpe = $titisBarcoETA['fecha_zarpe'];
+  $titis_arribo = $titisBarcoETA['fecha_arribo'];
+  $titisETA = $titisBarcoETA['eta'];
+  
+  $output .= '<div class="table-responsive">';
+  $output .= '
+    <table class="table table-striped table-hover">
+      <thead>
+        <tr>
+          <th align="left">Barco</td>
+          <th class="text-center"><a href="http://mazpesca.com/barcos/azteca-1-2">' . $azteca1_name . '</a></td>
+          <th class="text-center"><a href="http://mazpesca.com/barcos/azteca-2-0">' . $azteca2_name . '</a></td>
+          <th class="text-center"><a href="http://mazpesca.com/barcos/azteca-3-0">' . $azteca3_name . '</a></td>
+          <th class="text-center"><a href="http://mazpesca.com/barcos/azteca-4-0">' . $azteca4_name . '</a></td>
+          <th class="text-center"><a href="http://mazpesca.com/barcos/azteca-5-0">' . $azteca5_name . '</a></td>
+          <th class="text-center"><a href="http://mazpesca.com/barcos/azteca-6-0">' . $azteca6_name . '</a></td>
+          <th class="text-center"><a href="http://mazpesca.com/barcos/azteca-7-0">' . $azteca7_name . '</a></td>
+          <th class="text-center"><a href="http://mazpesca.com/barcos/azteca-8-2">' . $azteca8_name . '</a></td>
+          <th class="text-center"><a href="http://mazpesca.com/barcos/azteca-9-0">' . $azteca9_name . '</a></td>
+          <th class="text-center"><a href="http://mazpesca.com/barcos/azteca-10-0">' . $azteca10_name . '</a></td>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <th align="left">Zarpe</td>
+          <td align="middle">'. $azteca1_zarpe .'</td>
+          <td align="middle">'. $azteca2_zarpe .'</td>
+          <td align="middle">'. $azteca3_zarpe .'</td>
+          <td align="middle">'. $azteca4_zarpe .'</td>
+          <td align="middle">'. $azteca5_zarpe .'</td>
+          <td align="middle">'. $azteca6_zarpe .'</td>
+          <td align="middle">'. $azteca7_zarpe .'</td>
+          <td align="middle">'. $azteca8_zarpe .'</td>
+          <td align="middle">'. $azteca9_zarpe .'</td>
+          <td align="middle">'. $azteca10_zarpe .'</td>
+        </tr>
+        <tr>
+          <th align="left">Arribo</td>
+          <td align="middle">'. $azteca1_arribo .'</td>
+          <td align="middle">'. $azteca2_arribo .'</td>
+          <td align="middle">'. $azteca3_arribo .'</td>
+          <td align="middle">'. $azteca4_arribo .'</td>
+          <td align="middle">'. $azteca5_arribo .'</td>
+          <td align="middle">'. $azteca6_arribo .'</td>
+          <td align="middle">'. $azteca7_arribo .'</td>
+          <td align="middle">'. $azteca8_arribo .'</td>
+          <td align="middle">'. $azteca9_arribo .'</td>
+          <td align="middle">'. $azteca10_arribo .'</td>
+        </tr>
+        <tr>
+          <th align="left">ETA</td>
+          <td align="middle">'. $azteca1ETA . '</td>
+          <td align="middle">'. $azteca2ETA . '</td>
+          <td align="middle">'. $azteca3ETA . '</td>
+          <td align="middle">'. $azteca4ETA . '</td>
+          <td align="middle">'. $azteca5ETA . '</td>
+          <td align="middle">'. $azteca6ETA . '</td>
+          <td align="middle">'. $azteca7ETA . '</td>
+          <td align="middle">'. $azteca8ETA . '</td>
+          <td align="middle">'. $azteca9ETA . '</td>
+          <td align="middle">'. $azteca10ETA . '</td>
+        </tr>
+      </tbody>
+    </table>
+    <table class="table table-striped table-hover">
+      <thead>
+      <tr>
+        <th align="left">Barco</td>
+        <th class="text-center"><a href="http://mazpesca.com/barcos/camila-0">' . $camila_name . '</a></td>
+        <th class="text-center"><a href="http://mazpesca.com/barcos/clipperton-0">' . $clipperton_name . '</a></td>
+        <th class="text-center"><a href="http://mazpesca.com/barcos/el-dorado-0">' . $eldorado_name . '</a></td>
+        <th class="text-center"><a href="http://mazpesca.com/barcos/franz-0">' . $franz_name . '</a></td>
+        <th class="text-center"><a href="http://mazpesca.com/barcos/hanna-0">' . $hanna_name . '</a></td>
+        <th class="text-center"><a href="http://mazpesca.com/barcos/mazatun-0">' . $mazatun_name . '</a></td>
+        <th class="text-center"><a href="http://www.mazpesca.com/barcos/mazpesca-2-0">' . $mazpesca2_name . '</a></td>
+        <th class="text-center"><a href="http://mazpesca.com/barcos/paco-c-0">' . $pacoc_name . '</a></td>
+        <th class="text-center"><a href="http://mazpesca.com/barcos/tamara-0">' . $tamara_name . '</a></td>
+        <th class="text-center"><a href="http://mazpesca.com/barcos/titis-0">' . $titis_name . '</a></td>
+      </tr>
+      </thead>
+      <tbody>
+      <tr>
+        <th align="left">Zarpe</td>
+        <td align="middle">' . $camila_zarpe . '</td>
+        <td align="middle">' . $clipperton_zarpe . '</td>
+        <td align="middle">' . $eldorado_zarpe . '</td>
+        <td align="middle">' . $franz_zarpe . '</td>
+        <td align="middle">' . $hanna_zarpe . '</td>
+        <td align="middle">' . $mazatun_zarpe . '</td>
+        <td align="middle">' . $mazpesca2_zarpe . '</td>
+        <td align="middle">' . $pacoc_zarpe . '</td>
+        <td align="middle">' . $tamara_zarpe . '</td>
+        <td align="middle">' . $titis_zarpe . '</td>
+      </tr>
+      <tr>
+        <th align="left">Arribo</td>
+        <td align="middle">' . $camila_arribo . ' </td>
+        <td align="middle">' . $clipperton_arribo . '</td>
+        <td align="middle">' . $eldorado_arribo . '</td>
+        <td align="middle">' . $franz_arribo . '</td>
+        <td align="middle">' . $hanna_arribo . '</td>
+        <td align="middle">' . $mazatun_arribo . '</td>
+        <td align="middle">' . $mazpesca2_arribo . '</td>
+        <td align="middle">' . $pacoc_arribo . '</td>
+        <td align="middle">' . $tamara_arribo . '</td>
+        <td align="middle">' . $titis_arribo . '</td>
+      </tr>
+      <tr>
+        <th align="left">ETA</td>
+        <td align="middle">' . $camilaETA . '</td>
+        <td align="middle">' . $clippertonETA . '</td>
+        <td align="middle">' . $eldoradoETA . '</td>
+        <td align="middle">' . $franzETA . '</td>
+        <td align="middle">' . $hannaETA . '</td>
+        <td align="middle">' . $mazatunETA . '</td>
+        <td align="middle">' . $mazpesca2ETA . '</td>
+        <td align="middle">' . $pacocETA . '</td>
+        <td align="middle">' . $tamaraETA . '</td>
+        <td align="middle">' . $titisETA . '</td>
+      </tr>
+    </tbody>
+  </table>';
+  $output .= '</div>';
+  
+  return $output;
 ?>
