@@ -149,13 +149,13 @@ td, th {
 </style>
 <table>
   <tr bgcolor="#dddddd">
-    <th class="pull-center" width="30%">NOMBRE</th>
-    <th class="pull-center" width="9%">B/M</th>
-    <th class="pull-center" width="14%">PUESTO</th>
-    <th class="pull-center" width="9%">ÚLTIMO</th>
-    <th class="pull-center" width="9%">ESTADO</th>
-    <th class="pull-center" width="13%">VENCIMIENTO</th>
-    <th class="pull-center" width="16%">STATUS</th>
+    <th class="pull-center" width="30%"><strong>NOMBRE</strong></th>
+    <th class="pull-center" width="9%"><strong>B/M</strong></th>
+    <th class="pull-center" width="14%"><strong>PUESTO</strong></th>
+    <th class="pull-center" width="9%"><strong>ÚLTIMO</strong></th>
+    <th class="pull-center" width="9%"><strong>ESTADO</strong></th>
+    <th class="pull-center" width="13%"><strong>VENCIMIENTO</strong></th>
+    <th class="pull-center" width="16%"><strong>STATUS</strong></th>
   </tr>';
 /*
  * Tripulantes Query
@@ -321,7 +321,7 @@ $html .= '</table>';
 $html .= '<br><br>'
     . '<table>'
     . '<tr bgcolor="#dddddd">'
-    . '<td width="100%">NOTAS:</td>'
+    . '<td width="100%"><strong>NOTAS:</strong></td>'
     . '</tr>'
     . '<tr>'
     . '<td width="4%">1. </td>'
@@ -337,7 +337,7 @@ $html .= '<br><br>'
     . '<br><br>';
 $html .= '<table>'
     . '<tr bgcolor="#dddddd">'
-    . '<td width="100%">Recibió Información:</td>'
+    . '<td width="100%"><strong>Recibió Información:</strong></td>'
     . '</tr>'
     . '<tr>'
     . '<td width="20%">Capitán: </td>'
