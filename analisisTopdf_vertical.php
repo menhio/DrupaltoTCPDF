@@ -95,7 +95,7 @@ if (@file_exists(dirname(__FILE__).'/lang/eng.php')) {
 }
 // ---------------------------------------------------------
 // set font
-$pdf->SetFont('times', '', 12);
+$pdf->SetFont('times', '', 10);
 // add a page
 $pdf->AddPage();
 // ---------------------------------------------------------
@@ -107,12 +107,13 @@ $html ='
 table, th, td {
   border-collapse: collapse;
   color: #FFFFFF;
+  padding: 4px;
 }
 td, th {
   text-align: center;
   border: 1px solid #dddddd;
-  padding: 4px;
 }
+
 </style>
 <table style="width:100%">
   <tr bgcolor="#1F497D">
@@ -125,7 +126,6 @@ td, th {
 $pdf->writeHTML($html, true, 0, true, true);
 $pdf->Ln(1, FALSE);
 $pdf->SetFont('times', '', 10);
-
 $pdf->Ln(1, FALSE);
 $pdf->SetFont('times', '', 7);
 $html = '
@@ -140,7 +140,6 @@ table, th, td {
 .pull-left {
     text-align: left;
 }
-
 td {
     text-align: left;
 }
@@ -150,24 +149,22 @@ td, th {
 </style>
 <table>
   <tr bgcolor="#dddddd">
-    <th class="pull-center" width="29.6%">NOMBRE</th>
+    <th class="pull-center" width="30%">NOMBRE</th>
     <th class="pull-center" width="9%">B/M</th>
     <th class="pull-center" width="14%">PUESTO</th>
     <th class="pull-center" width="9%">ÚLTIMO</th>
     <th class="pull-center" width="9%">ESTADO</th>
-    <th class="pull-center" width="15%">VENCIMIENTO</th>
-    <th class="pull-center" width="14%">STATUS</th>
+    <th class="pull-center" width="13%">VENCIMIENTO</th>
+    <th class="pull-center" width="16%">STATUS</th>
   </tr>';
 /*
  * Tripulantes Query
 */
 $query2 = db_select('node', 'n'); // Viaje NID
-
 $query2->leftJoin('field_data_field_barco_viaje', 'b_tid', 'b_tid.entity_id = n.nid');
 $query2->leftJoin('node', 'b_nid', 'b_nid.nid = b_tid.field_barco_viaje_target_id');
 $query2->leftJoin('field_data_field_nombre_barco', 'n_tid', 'n_tid.entity_id = b_nid.nid');
 $query2->leftJoin('taxonomy_term_data', 'bar_tax', 'bar_tax.tid = n_tid.field_nombre_barco_tid');
-
 $query2->leftJoin('field_data_field_tripulacion_viaje', 'trip', 'trip.entity_id = n.nid');
 $query2->leftJoin('field_collection_item', 'fc', 'fc.item_id = trip.field_tripulacion_viaje_value');
 $query2->leftJoin('field_data_field_nombre_tripulante', 'nom', 'nom.entity_id = fc.item_id');
@@ -231,7 +228,6 @@ $query2->leftJoin('field_data_field_ap_paterno_account', 'join_jefe_flota_patern
     'join_jefe_flota_paterno.entity_id = join_jefe_flota.field_jefe_flota_viaje_target_id');
 $query2->leftJoin('field_data_field_ap_materno_account', 'join_jefe_flota_materno', 
     'join_jefe_flota_materno.entity_id = join_jefe_flota.field_jefe_flota_viaje_target_id');
-
 /*
  * Fields
  */
@@ -248,7 +244,6 @@ $query2->addField('t', 'title', 't_title');
 $query2->addField('nombre_join', 'field_nombre_personal_value', 'nombre');
 $query2->addField('paterno_join', 'field_ap_paterno_personal_value', 'ap_paterno');
 $query2->addField('materno_join', 'field_ap_materno_personal_value', 'ap_materno');
-
 $query2->addField('puesto_tax_join', 'name', 'puesto_name');
 $query2->addField('puesto_tax_join', 'tid', 'puesto_tid');
 $query2->addField('cate_tax_join', 'name', 'cate_name');
@@ -264,7 +259,6 @@ $query2->addField('join_ing_puerto_materno', 'field_ap_materno_account_value', '
 $query2->addField('join_jefe_flota_nombre', 'field_nombre_account_value', 'jefe_flota_nombre');
 $query2->addField('join_jefe_flota_paterno', 'field_ap_paterno_account_value', 'jefe_flota_paterno');
 $query2->addField('join_jefe_flota_materno', 'field_ap_materno_account_value', 'jefe_flota_materno');
-
 $query2->addField('obser_nid_join', 'field_observaciones_viaje_value', 'obser_viaje');
 $query2->addField('orden_tax_join', 'field_jerarquia_trip_value', 'order_jerarquia');
 $query2->condition('n.nid', $n, '=');
@@ -341,7 +335,6 @@ $html .= '<br><br>'
     . '</tr>'
     . '</table>'
     . '<br><br>';
-
 $html .= '<table>'
     . '<tr bgcolor="#dddddd">'
     . '<td width="100%">Recibió Información:</td>'
@@ -360,7 +353,6 @@ $html .= '<table>'
     . '</tr>'
     . '</table>';
 $pdf->writeHTML($html, true, 0, true, true);
-
 $html = '
 <style>
 .table2 {
